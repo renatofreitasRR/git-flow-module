@@ -1,0 +1,28 @@
+# .github/workflows/gitflow-validate.yml
+name: GitFlow Validate
+
+on:
+  workflow_call:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate GitFlow
+        shell: bash
+        run: |
+          BASE="${{ github.base_ref }}"
+          HEAD="${{ github.head_ref }}"
+
+          if [[ "$BASE" == "develop" && ! "$HEAD" =~ ^feature/ && ! "$HEAD" =~ ^hotfix/ ]]; then
+            exit 1
+          fi
+
+          if [[ "$BASE" =~ ^release/ && "$HEAD" != "develop" ]]; then
+            exit 1
+          fi
+
+          if [[ "$BASE" == "main" && ! "$HEAD" =~ ^release/ && ! "$HEAD" =~ ^hotfix/ ]]; then
+            exit 1
+          fi

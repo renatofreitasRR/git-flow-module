@@ -1,0 +1,64 @@
+name: Auto PR GitFlow
+
+on:
+  push:
+    branches:
+      - "feature/**"
+      - develop
+      - "release/**"
+      - "hotfix/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  auto-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Define target branch
+        id: flow
+        shell: bash
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+
+          if [[ "$BRANCH" =~ ^feature/ ]]; then
+            echo "base=develop" >> "$GITHUB_OUTPUT"
+          elif [[ "$BRANCH" == "develop" ]]; then
+            echo "base=${{ vars.CURRENT_RELEASE_BRANCH }}" >> "$GITHUB_OUTPUT"
+          elif [[ "$BRANCH" =~ ^release/ ]]; then
+            echo "base=main" >> "$GITHUB_OUTPUT"
+          elif [[ "$BRANCH" =~ ^hotfix/ ]]; then
+            echo "base=main" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD: ${{ github.ref_name }}
+          BASE: ${{ steps.flow.outputs.base }}
+        shell: bash
+        run: |
+          if [[ -z "$BASE" ]]; then
+            echo "No target branch defined"
+            exit 0
+          fi
+
+          EXISTS=$(gh pr list \
+            --head "$HEAD" \
+            --base "$BASE" \
+            --state open \
+            --json number \
+            --jq 'length')
+
+          if [[ "$EXISTS" != "0" ]]; then
+            echo "PR already exists"
+            exit 0
+          fi
+
+          gh pr create \
+            --head "$HEAD" \
+            --base "$BASE" \
+            --title "Merge $HEAD into $BASE" \
+            --body "Automatic GitFlow pull request."
