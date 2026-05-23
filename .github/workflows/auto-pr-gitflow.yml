@@ -1,15 +1,11 @@
+# .github/workflows/gitflow-auto-pr.yml
 name: Auto PR GitFlow
 
 on:
-  push:
-    branches:
-      - "feature/**"
-      - develop
-      - "release/**"
-      - "hotfix/**"
+  workflow_call:
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
@@ -17,6 +13,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create next release branch
+        if: github.ref_name == 'develop'
+        id: release
+        shell: bash
+        run: |
+            git fetch origin '+refs/heads/release/*:refs/remotes/origin/release/*'
+
+            LAST=$(git branch -r \
+            | grep 'origin/release/' \
+            | sed 's|.*origin/release/||' \
+            | sort -V \
+            | tail -n 1)
+
+            if [[ -z "$LAST" ]]; then
+            NEXT="1.0.0"
+            else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$LAST"
+            NEXT="$((MAJOR + 1)).0.0"
+            fi
+
+            BRANCH="release/$NEXT"
+
+            git config user.name "github-actions"
+            git config user.email "github-actions@github.com"
+
+            git checkout -b "$BRANCH"
+            git push origin "$BRANCH"
+
+            echo "base=$BRANCH" >> "$GITHUB_OUTPUT"
+
       - name: Define target branch
         id: flow
         shell: bash
@@ -26,7 +56,7 @@ jobs:
           if [[ "$BRANCH" =~ ^feature/ ]]; then
             echo "base=develop" >> "$GITHUB_OUTPUT"
           elif [[ "$BRANCH" == "develop" ]]; then
-            echo "base=${{ vars.CURRENT_RELEASE_BRANCH }}" >> "$GITHUB_OUTPUT"
+            echo "base=${{ steps.release.outputs.base }}" >> "$GITHUB_OUTPUT"
           elif [[ "$BRANCH" =~ ^release/ ]]; then
             echo "base=main" >> "$GITHUB_OUTPUT"
           elif [[ "$BRANCH" =~ ^hotfix/ ]]; then
@@ -41,19 +71,6 @@ jobs:
         shell: bash
         run: |
           if [[ -z "$BASE" ]]; then
-            echo "No target branch defined"
-            exit 0
-          fi
-
-          EXISTS=$(gh pr list \
-            --head "$HEAD" \
-            --base "$BASE" \
-            --state open \
-            --json number \
-            --jq 'length')
-
-          if [[ "$EXISTS" != "0" ]]; then
-            echo "PR already exists"
             exit 0
           fi
 
