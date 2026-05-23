@@ -22,7 +22,7 @@ jobs:
         id: release
         shell: bash
         run: |
-            git fetch origin '+refs/heads/release/*:refs/remotes/origin/release/*'
+            git fetch origin '+refs/heads/*:refs/remotes/origin/*' || true
 
             LAST=$(git branch -r \
             | grep 'origin/release/' \
@@ -31,10 +31,10 @@ jobs:
             | tail -n 1)
 
             if [[ -z "$LAST" ]]; then
-            NEXT="1.0.0"
+                NEXT="1.0.0"
             else
-            IFS='.' read -r MAJOR MINOR PATCH <<< "$LAST"
-            NEXT="$((MAJOR + 1)).0.0"
+                IFS='.' read -r MAJOR MINOR PATCH <<< "$LAST"
+                NEXT="$((MAJOR + 1)).0.0"
             fi
 
             BRANCH="release/$NEXT"
